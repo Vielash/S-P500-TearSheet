@@ -1,0 +1,7 @@
+streamlit>=1.37
+pandas>=2.2
+numpy>=1.26
+plotly>=5.19
+statsmodels>=0.14
+pytest>=8.0
+pandas-datareader>=0.10
