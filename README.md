@@ -80,7 +80,7 @@ factors.py          CAPM + Fama-French regresyonları (statsmodels)
 plots.py            Plotly grafikleri, ui.py ile aynı temada
 build_universe.py   S&P 500 sembol listesini indirir -> data/sp500.csv
 update_factors.py   gerçek Ken French faktör verisini indirir
-tests/              her metriğin doğruluk testleri
+tests/              79 test: metrikler, faktörler, veri çekme, arayüz
 docs/metrics.md     metrik rehberi: formül + sezgi + tuzak
 data/               ff5_daily.csv gerçek Ken French verisi, sample_returns.csv sentetik
 ```

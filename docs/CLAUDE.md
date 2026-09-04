@@ -34,6 +34,27 @@ python build_universe.py        # one-shot: refresh data/sp500.csv from Wikipedi
 small; anything needed just for tests or the one-shot download scripts belongs in
 `requirements-dev.txt`.
 
+The suite is 79 tests in four files, and they answer different questions:
+
+- `test_metrics.py` (37) — is the arithmetic right? Small hand-checkable series
+  where the expected value sits in a comment, plus pinned values on the sample
+  data. `R4 = 2 * B4` gives beta 2, correlation 1, alpha 0 and captures 2 by
+  construction, so those tests check the *definition*, not just the sum.
+- `test_factors.py` (13) — regressions and the derived risk-free rate. Also
+  asserts the shipped `data/ff5_daily.csv` is the real series, so swapping in a
+  synthetic file turns the suite red instead of silently changing every number.
+- `test_market.py` (9) — the long-format contract, with `yf.download`
+  monkeypatched so no test needs the network.
+- `test_app.py` (20) — how numbers are *presented*, via `AppTest`: rf is derived
+  and not a widget, alpha badges on its t-statistic rather than its sign, the
+  factor section stays shut on synthetic factors, a failure inside section 04
+  does not take the page down, compare arrows follow each metric's direction.
+  These were verified by mutation: reverting any of those behaviours fails them.
+
+When changing UI copy that a test asserts on (the VaR/R²/Ulcer wording, the CAPM
+formula string), update `test_app.py` in the same edit — that coupling is
+deliberate, since those exact sentences were wrong once.
+
 `conftest.py` exists solely to put the repo root on `sys.path` so `tests/` can
 `import metrics`. `update_factors.py` writes to the relative path
 `data/ff5_daily.csv`, so it must be run from `tearsheet/`.
