@@ -111,6 +111,11 @@ Kodu okuma sırası önerisi: `data.py` → `metrics.py` → `factors.py` → `p
 2. `requirements.txt`'i kendisi kurar; `requirements-dev.txt`'e dokunmaz.
 3. Ayarlanacak secret yok — uygulama hiçbir API anahtarı kullanmıyor.
 
+`requirements.txt`'teki sürümler üst sınırlı. Streamlit Cloud her deploy'da en
+güncel sürümü kurar; sınır olmadan bir major sürüm atlaması uygulamayı sen
+görmeden bozabilir. Sınırları yükseltmeden önce yerelde `pytest` ve uygulamayı
+çalıştır.
+
 Canlıda bilinmesi gereken tek şey **Yahoo'nun rate limit'i**: bulutta bütün
 ziyaretçiler tek bir IP'den çıkar ve Yahoo tekrarlayan istekleri kısar. Bu
 durumda uygulama düşmüyor — "Yahoo is rate-limiting this server" paneli çıkıyor,
