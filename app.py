@@ -733,169 +733,183 @@ with tab_main:
                                 key="ch_heat")
 
     # ---------- 04 · FACTOR EXPOSURE ----------
-    # Faktor dosyasi sentetikken gercek getirileri ona regres etmek anlamsiz
-    # katsayi uretir: iki seri arasinda hicbir ortak neden yok, R-kare sifira
-    # yakin cikar ve yuklemeler gurultudur. Boyle bir durumda bolumu kapatiyoruz.
-    ff_synth = ff is not None and factors.is_synthetic(ff)
-    ff_usable = ff is not None and not (ff_synth and not synthetic)
+    # Bu bolum metrik kartlarindan farkli: regresyon, grafik ve tablo uretimi
+    # ic ice geciyor ve herhangi biri patlarsa sayfanin geri kalani (05 ve
+    # kenar cubugundaki CSV disa aktarimi dahil) hic render edilmiyordu.
+    # val() metrikler icin ne yapiyorsa, bu sarmalayici da bolum icin onu yapiyor:
+    # hata bolumun kendi icinde kalir, tearsheet'in kalani ayakta durur.
+    try:
+        # Faktor dosyasi sentetikken gercek getirileri ona regres etmek anlamsiz
+        # katsayi uretir: iki seri arasinda hicbir ortak neden yok, R-kare sifira
+        # yakin cikar ve yuklemeler gurultudur. Boyle bir durumda bolumu kapatiyoruz.
+        ff_synth = ff is not None and factors.is_synthetic(ff)
+        ff_usable = ff is not None and not (ff_synth and not synthetic)
 
-    if ff is not None and not ff_usable:
-        ui.section("04", "Factor exposure",
-                   "How much of your return comes from known risk factors?")
-        ui.html('<div class="qt-panel warn"><h4>Factor analysis is off for this data</h4>'
-                '<p>The factor file in <code>data/ff5_daily.csv</code> is a synthetic '
-                'placeholder, but the returns loaded here are real. Regressing real '
-                'returns on invented factors produces coefficients that mean nothing — '
-                'a near-zero R² and loadings that are pure noise — so the section is '
-                'hidden rather than shown with numbers you should not read.</p>'
-                '<p>Run <code>python update_factors.py</code> to pull the real '
-                'Kenneth French series, and this section comes back.</p></div>')
+        if ff is not None and not ff_usable:
+            ui.section("04", "Factor exposure",
+                       "How much of your return comes from known risk factors?")
+            ui.html('<div class="qt-panel warn"><h4>Factor analysis is off for this data</h4>'
+                    '<p>The factor file in <code>data/ff5_daily.csv</code> is a synthetic '
+                    'placeholder, but the returns loaded here are real. Regressing real '
+                    'returns on invented factors produces coefficients that mean nothing — '
+                    'a near-zero R² and loadings that are pure noise — so the section is '
+                    'hidden rather than shown with numbers you should not read.</p>'
+                    '<p>Run <code>python update_factors.py</code> to pull the real '
+                    'Kenneth French series, and this section comes back.</p></div>')
 
-    if ff_usable:
-        ui.section("04", "Factor exposure",
-                   "How much of your return comes from known risk factors?")
+        if ff_usable:
+            ui.section("04", "Factor exposure",
+                       "How much of your return comes from known risk factors?")
 
-        with st.expander("What do the five factors mean?", expanded=True):
-            terms = [
-                ("Mkt-RF", "Market excess",
-                 "The whole market's return above the risk-free rate."),
-                ("SMB", "Small − big",
-                 "Excess return of small companies over large ones. "
-                 "Negative: you sit on the large-cap side."),
-                ("HML", "Value − growth",
-                 "Excess return of cheap (value) stocks over expensive (growth) ones. "
-                 "Negative: a growth tilt."),
-                ("RMW", "Robust − weak",
-                 "Excess return of companies with high operating profitability."),
-                ("CMA", "Conservative − aggressive",
-                 "Excess return of low-investment companies over high-investment ones."),
-            ]
-            ui.html('<div class="qt-grid qt-grid-5">' + "".join(
-                f'<div style="display:flex;flex-direction:column;gap:5px">'
-                f'<span style="font:600 12px/1 \'IBM Plex Mono\';color:#8fb3e8">{code}</span>'
-                f'<span style="font:500 11.5px/1.35 \'IBM Plex Sans\';color:#f2f4f8">{tr}</span>'
-                f'<span style="font:400 11px/1.45 \'IBM Plex Sans\';color:#8b93a3">{desc}</span>'
-                f'</div>' for code, tr, desc in terms) + "</div>"
-                + '<div style="font:400 11.5px/1.5 \'IBM Plex Sans\';color:#8b93a3;'
-                  'padding-top:12px;margin-top:12px;border-top:1px solid #333945">'
-                  'A loading is your sensitivity to that factor. '
-                  '<span style="color:#c8ccd6">+0.5</span> means "when the factor gains '
-                  '1%, you gain 0.5%". <span style="color:#c8ccd6">Alpha</span> is what '
-                  'none of the five factors explains.</div>')
+            with st.expander("What do the five factors mean?", expanded=True):
+                terms = [
+                    ("Mkt-RF", "Market excess",
+                     "The whole market's return above the risk-free rate."),
+                    ("SMB", "Small − big",
+                     "Excess return of small companies over large ones. "
+                     "Negative: you sit on the large-cap side."),
+                    ("HML", "Value − growth",
+                     "Excess return of cheap (value) stocks over expensive (growth) ones. "
+                     "Negative: a growth tilt."),
+                    ("RMW", "Robust − weak",
+                     "Excess return of companies with high operating profitability."),
+                    ("CMA", "Conservative − aggressive",
+                     "Excess return of low-investment companies over high-investment ones."),
+                ]
+                ui.html('<div class="qt-grid qt-grid-5">' + "".join(
+                    f'<div style="display:flex;flex-direction:column;gap:5px">'
+                    f'<span style="font:600 12px/1 \'IBM Plex Mono\';color:#8fb3e8">{code}</span>'
+                    f'<span style="font:500 11.5px/1.35 \'IBM Plex Sans\';color:#f2f4f8">{tr}</span>'
+                    f'<span style="font:400 11px/1.45 \'IBM Plex Sans\';color:#8b93a3">{desc}</span>'
+                    f'</div>' for code, tr, desc in terms) + "</div>"
+                    + '<div style="font:400 11.5px/1.5 \'IBM Plex Sans\';color:#8b93a3;'
+                      'padding-top:12px;margin-top:12px;border-top:1px solid #333945">'
+                      'A loading is your sensitivity to that factor. '
+                      '<span style="color:#c8ccd6">+0.5</span> means "when the factor gains '
+                      '1%, you gain 0.5%". <span style="color:#c8ccd6">Alpha</span> is what '
+                      'none of the five factors explains.</div>')
 
-        if ff_synth:
-            st.caption("Factor data: data/ff5_daily.csv — synthetic sample; "
-                       "run python update_factors.py for the real series.")
-        else:
-            st.caption(f"Factor data: Kenneth French 5-factor daily, "
-                       f"{ff.index.min():%Y-%m-%d} → {ff.index.max():%Y-%m-%d}. "
-                       f"The library publishes with a lag, so the last few weeks of "
-                       f"your return series may sit outside the regression window.")
-
-        # faktor dosyasiyla ortak gun sayisi az oldugunda regresyon kurulamaz;
-        # bu bir hata degil, veri kisitidir — bolum kendi durumunu anlatir
-        try:
-            betas = factors.rolling_ff_betas(r, ff, window)
-        except Exception:
-            betas = pd.DataFrame()
-        try:
-            ff5_table, ff5_r2 = factors.ff_regression(r, ff, "ff5")
-            ff3_table, ff3_r2 = factors.ff_regression(r, ff, "ff3")
-        except Exception:
-            ff5_table = None
-
-    if ff_usable and ff5_table is None:
-        ui.html('<div class="qt-panel warn"><h4>Not enough overlapping days for factor analysis</h4>'
-                '<p>The overlap between your return series and <code>data/ff5_daily.csv</code> '
-                'is too short to fit a regression. Load a longer date range, or pull fresh '
-                'factor data with <code>python update_factors.py</code>.</p>'
-                '</div>')
-
-    if ff_usable and ff5_table is not None:
-        left, right = st.columns([1.35, 1], gap="medium")
-        with left:
-            if betas.empty:
-                with st.container(key="pending-fbeta"):
-                    ui.html('<div class="qt-empty" style="min-height:300px">'
-                            '<div class="ring">·</div>'
-                            '<b>Rolling factor betas need a longer series</b>'
-                            f'<p>The {window}-day window is longer than the overlap with the '
-                            'factor file. Pick a shorter window, or load a longer date '
-                            'range.</p></div>')
+            if ff_synth:
+                st.caption("Factor data: data/ff5_daily.csv — synthetic sample; "
+                           "run python update_factors.py for the real series.")
             else:
-                with ui.chart_card("fbeta", "Rolling factor betas", f"{window}d",
-                                   "Exposure is not fixed: it shifts across the window."):
-                    named = {c.upper().replace("_RF", "-RF"): betas[c] for c in betas.columns}
-                    st.plotly_chart(plots.line_chart(named, patterned=True),
-                                    width="stretch", key="ch_fb")
-                    ui.chart_footer(ui.legend([
-                        (n, plots.SERIES[i % 5], {"solid": "solid"}.get(
-                            plots.DASHES[i % 5], "dashed"))
-                        for i, n in enumerate(named)]))
-        with right:
-            with ui.chart_card("floads", "FF5 loadings", "full period",
-                               "Right of zero is positive exposure, left is negative."):
-                loadings = ff5_table.set_index("factor")["coef"].drop("Alpha")
-                loadings.index = [i.upper().replace("_RF", "-RF") for i in loadings.index]
-                st.plotly_chart(plots.loadings_bar(loadings), width="stretch",
-                                key="ch_fl")
+                st.caption(f"Factor data: Kenneth French 5-factor daily, "
+                           f"{ff.index.min():%Y-%m-%d} → {ff.index.max():%Y-%m-%d}. "
+                           f"The library publishes with a lag, so the last few weeks of "
+                           f"your return series may sit outside the regression window.")
 
-        def reg_table(title, table, r2, foot=""):
-            # Alpha'nin gunluk katsayisi 0.0001 mertebesinde: uc ondalikta 0.000
-            # gorunuyordu. Baz puana cevirince (x 10000) okunur bir sayi oluyor,
-            # faktor yuklemeleri ise zaten 0.1-1.5 araliginda, onlar ondalik kaliyor.
-            cols = "grid-template-columns:1.15fr 92px 78px 52px"
-            out = [f'<div class="qt-tbl"><div class="qt-tbl-head"><b>{title}</b>'
-                   f'<span>R² {ui.num(r2, 2)}</span></div>',
-                   f'<div class="qt-tr head" style="{cols}"><div>FACTOR</div>'
-                   f'<div class="r">COEF</div><div class="r">ANN.</div>'
-                   f'<div class="r">t</div></div>']
-            for _, row in table.iterrows():
-                is_alpha = row["factor"] == "Alpha"
-                name = row["factor"].upper().replace("_RF", "-RF") if not is_alpha else "Alpha"
-                mark = stars(row["p_value"])
-                ann = ("—" if pd.isna(row["annualized"])
-                       else ui.pct(row["annualized"], 2, signed=True))
-                ann_color = ("#7fd0ab" if row["annualized"] > 0 else "#eda1a1") \
-                    if not pd.isna(row["annualized"]) else "#8b93a3"
-                label_color = "#f2f4f8" if is_alpha else ("#c8ccd6" if mark else "#8b93a3")
-                coef = (f'{ui.num(row["coef"] * 1e4, 1, signed=True)} bp'
-                        if is_alpha else ui.num(row["coef"], 3))
-                out.append(
-                    f'<div class="qt-tr" style="{cols}">'
-                    f'<div style="color:{label_color}">{name} {mark}</div>'
-                    f'<div class="r">{coef}</div>'
-                    f'<div class="r" style="color:{ann_color}">{ann}</div>'
-                    f'<div class="r">{ui.num(row["t_stat"], 2)}</div></div>')
-            legend_note = ("* p&lt;0.05 · ** p&lt;0.01 · *** p&lt;0.001 — rows without a star "
-                           "are not statistically significant.")
-            out.append(f'<div class="qt-tbl-foot">{foot or legend_note}</div></div>')
-            return "".join(out)
+            # faktor dosyasiyla ortak gun sayisi az oldugunda regresyon kurulamaz;
+            # bu bir hata degil, veri kisitidir — bolum kendi durumunu anlatir
+            try:
+                betas = factors.rolling_ff_betas(r, ff, window)
+            except Exception:
+                betas = pd.DataFrame()
+            try:
+                ff5_table, ff5_r2 = factors.ff_regression(r, ff, "ff5")
+                ff3_table, ff3_r2 = factors.ff_regression(r, ff, "ff3")
+            except Exception:
+                ff5_table = None
 
-        t1 = reg_table("FF5 regression", ff5_table, ff5_r2)
-        t2 = reg_table("FF3 regression", ff3_table, ff3_r2,
-                       "Alpha shifts once profitability and investment are dropped: "
-                       "those two were explaining part of the return.")
-        if bench and capm_table is not None:
-            t3 = reg_table(f"CAPM (vs {bench})", capm_table, capm_r2,
-                           f"Single-factor model, excess returns on both sides: "
-                           f"(r − r_f) = α + β(r_b − r_f) + ε, with r_f = "
-                           f"{rf_pct:.2f}% annual. Alpha's daily coefficient is shown "
-                           f"in basis points; 1 bp = 0.01%.")
-        else:
-            t3 = ('<div class="qt-list" style="border-style:dashed;border-color:#454c5a;'
-                  'background:#20242c"><div class="qt-list-head" style="border-bottom:'
-                  '1px dashed #333945;flex-direction:row;justify-content:space-between;'
-                  'align-items:center"><b style="color:#c8ccd6">CAPM regression</b>'
-                  + ui.badge("NO BENCHMARK", "warn") +
-                  '</div><div class="qt-empty" style="min-height:180px">'
-                  '<b>The single-factor CAPM table needs a benchmark</b>'
-                  '<p>Add a second ticker (e.g. SPY) to your file and Alpha, Beta and R² '
-                  'land here. This is not an error.</p></div></div>')
-        # Uc tabloyu ayni siraya sikistirinca ANNUAL ve t sutunlari masaustunde
-        # bile iki satira boluniyordu. FF5/FF3 yan yana, CAPM tam genislikte altta.
-        ui.html(f'<div class="qt-grid qt-grid-2">{t1}{t2}</div>'
-                f'<div style="margin-top:14px">{t3}</div>')
+        if ff_usable and ff5_table is None:
+            ui.html('<div class="qt-panel warn"><h4>Not enough overlapping days for factor analysis</h4>'
+                    '<p>The overlap between your return series and <code>data/ff5_daily.csv</code> '
+                    'is too short to fit a regression. Load a longer date range, or pull fresh '
+                    'factor data with <code>python update_factors.py</code>.</p>'
+                    '</div>')
+
+        if ff_usable and ff5_table is not None:
+            left, right = st.columns([1.35, 1], gap="medium")
+            with left:
+                if betas.empty:
+                    with st.container(key="pending-fbeta"):
+                        ui.html('<div class="qt-empty" style="min-height:300px">'
+                                '<div class="ring">·</div>'
+                                '<b>Rolling factor betas need a longer series</b>'
+                                f'<p>The {window}-day window is longer than the overlap with the '
+                                'factor file. Pick a shorter window, or load a longer date '
+                                'range.</p></div>')
+                else:
+                    with ui.chart_card("fbeta", "Rolling factor betas", f"{window}d",
+                                       "Exposure is not fixed: it shifts across the window."):
+                        named = {c.upper().replace("_RF", "-RF"): betas[c] for c in betas.columns}
+                        st.plotly_chart(plots.line_chart(named, patterned=True),
+                                        width="stretch", key="ch_fb")
+                        ui.chart_footer(ui.legend([
+                            (n, plots.SERIES[i % 5], {"solid": "solid"}.get(
+                                plots.DASHES[i % 5], "dashed"))
+                            for i, n in enumerate(named)]))
+            with right:
+                with ui.chart_card("floads", "FF5 loadings", "full period",
+                                   "Right of zero is positive exposure, left is negative."):
+                    loadings = ff5_table.set_index("factor")["coef"].drop("Alpha")
+                    loadings.index = [i.upper().replace("_RF", "-RF") for i in loadings.index]
+                    st.plotly_chart(plots.loadings_bar(loadings), width="stretch",
+                                    key="ch_fl")
+
+            def reg_table(title, table, r2, foot=""):
+                # Alpha'nin gunluk katsayisi 0.0001 mertebesinde: uc ondalikta 0.000
+                # gorunuyordu. Baz puana cevirince (x 10000) okunur bir sayi oluyor,
+                # faktor yuklemeleri ise zaten 0.1-1.5 araliginda, onlar ondalik kaliyor.
+                cols = "grid-template-columns:1.15fr 92px 78px 52px"
+                out = [f'<div class="qt-tbl"><div class="qt-tbl-head"><b>{title}</b>'
+                       f'<span>R² {ui.num(r2, 2)}</span></div>',
+                       f'<div class="qt-tr head" style="{cols}"><div>FACTOR</div>'
+                       f'<div class="r">COEF</div><div class="r">ANN.</div>'
+                       f'<div class="r">t</div></div>']
+                for _, row in table.iterrows():
+                    is_alpha = row["factor"] == "Alpha"
+                    name = row["factor"].upper().replace("_RF", "-RF") if not is_alpha else "Alpha"
+                    mark = stars(row["p_value"])
+                    ann = ("—" if pd.isna(row["annualized"])
+                           else ui.pct(row["annualized"], 2, signed=True))
+                    ann_color = ("#7fd0ab" if row["annualized"] > 0 else "#eda1a1") \
+                        if not pd.isna(row["annualized"]) else "#8b93a3"
+                    label_color = "#f2f4f8" if is_alpha else ("#c8ccd6" if mark else "#8b93a3")
+                    coef = (f'{ui.num(row["coef"] * 1e4, 1, signed=True)} bp'
+                            if is_alpha else ui.num(row["coef"], 3))
+                    out.append(
+                        f'<div class="qt-tr" style="{cols}">'
+                        f'<div style="color:{label_color}">{name} {mark}</div>'
+                        f'<div class="r">{coef}</div>'
+                        f'<div class="r" style="color:{ann_color}">{ann}</div>'
+                        f'<div class="r">{ui.num(row["t_stat"], 2)}</div></div>')
+                legend_note = ("* p&lt;0.05 · ** p&lt;0.01 · *** p&lt;0.001 — rows without a star "
+                               "are not statistically significant.")
+                out.append(f'<div class="qt-tbl-foot">{foot or legend_note}</div></div>')
+                return "".join(out)
+
+            t1 = reg_table("FF5 regression", ff5_table, ff5_r2)
+            t2 = reg_table("FF3 regression", ff3_table, ff3_r2,
+                           "Alpha shifts once profitability and investment are dropped: "
+                           "those two were explaining part of the return.")
+            if bench and capm_table is not None:
+                t3 = reg_table(f"CAPM (vs {bench})", capm_table, capm_r2,
+                               f"Single-factor model, excess returns on both sides: "
+                               f"(r − r_f) = α + β(r_b − r_f) + ε, with r_f = "
+                               f"{rf_pct:.2f}% annual. Alpha's daily coefficient is shown "
+                               f"in basis points; 1 bp = 0.01%.")
+            else:
+                t3 = ('<div class="qt-list" style="border-style:dashed;border-color:#454c5a;'
+                      'background:#20242c"><div class="qt-list-head" style="border-bottom:'
+                      '1px dashed #333945;flex-direction:row;justify-content:space-between;'
+                      'align-items:center"><b style="color:#c8ccd6">CAPM regression</b>'
+                      + ui.badge("NO BENCHMARK", "warn") +
+                      '</div><div class="qt-empty" style="min-height:180px">'
+                      '<b>The single-factor CAPM table needs a benchmark</b>'
+                      '<p>Add a second ticker (e.g. SPY) to your file and Alpha, Beta and R² '
+                      'land here. This is not an error.</p></div></div>')
+            # Uc tabloyu ayni siraya sikistirinca ANNUAL ve t sutunlari masaustunde
+            # bile iki satira boluniyordu. FF5/FF3 yan yana, CAPM tam genislikte altta.
+            ui.html(f'<div class="qt-grid qt-grid-2">{t1}{t2}</div>'
+                    f'<div style="margin-top:14px">{t3}</div>')
+    except Exception as exc:  # bolum coksun, sayfa cokmesin
+        ui.ERRORS["factor section"] = f"{type(exc).__name__}: {exc}"
+        ui.html('<div class="qt-panel warn" style="border-left-color:#eda1a1">'
+                '<h4>The factor section could not be rendered</h4>'
+                f'<p><code>{escape(type(exc).__name__)}: {escape(str(exc))}</code></p>'
+                '<p>Every other section on this page is unaffected. This is most '
+                'often a factor file that does not overlap the loaded date range; '
+                '<code>python update_factors.py</code> refreshes it.</p></div>')
 
     # ---------- 05 · DETAILED METRICS ----------
     ui.section("05", "Detailed metrics",
