@@ -1,8 +1,10 @@
 """CAPM ve Fama-French regresyonlari. Bu dosya hazir geliyor ama okumaya deger:
 statsmodels ile regresyon kurmanin standart kalibi burada.
 
-Not: repodaki data/ff5_daily.csv SENTETIK ornek veridir. Gercek Ken French
-faktorlerini indirmek icin kendi makinende bir kez calistir: python update_factors.py
+data/ff5_daily.csv artik GERCEK Ken French verisidir (1963-07-01'den itibaren);
+python update_factors.py ile tazelenir. Dosya sentetik bir ornekle degistirilirse
+is_synthetic() bunu yakalar ve app.py faktor bolumunu kapatir: gercek getirileri
+uydurma faktorlere regres etmek anlamsiz katsayi uretir.
 """
 
 import numpy as np
@@ -18,6 +20,16 @@ TRADING_DAYS = 252
 def load_factors(path="data/ff5_daily.csv"):
     """Faktor dosyasini okur. Kolonlar: date, mkt_rf, smb, hml, rmw, cma, rf (ondalik)."""
     return pd.read_csv(path, parse_dates=["date"]).set_index("date").sort_index()
+
+
+def is_synthetic(ff):
+    """Faktor dosyasi gercek Ken French serisi mi, sentetik bir ornek mi?
+
+    Gercek gunluk FF5 serisi 1963-07-01'de basliyor; repodaki eski sentetik ornek
+    2023'te basliyordu. Tarihe bakmak dosyaya ayri bir bayrak koymaktan daha
+    dayanikli: update_factors.py'yi kim calistirirsa calistirsin ayni sonucu verir.
+    """
+    return ff is None or len(ff) == 0 or ff.index.min().year >= 1990
 
 
 def _ols_table(y, X):
@@ -65,9 +77,28 @@ def rolling_ff_betas(returns, factors, window, model="ff5"):
     return res.params[cols].dropna()
 
 
-def capm_regression(returns, benchmark):
-    """Basit CAPM: r = alpha + beta * benchmark. (rf'siz sade hali; fark docs'ta)"""
+def capm_regression(returns, benchmark, rf=0.0, periods_per_year=TRADING_DAYS):
+    """CAPM: (r - rf) = alpha + beta * (r_b - rf) + eps.
+
+    rf yillik orandir, iceride gunluge boluyoruz. rf=0 verilirse iki taraftan da
+    ayni sabit dusuyor, beta degismiyor; alpha ise tam olarak rf=0 varsayimini
+    yansitiyor. Arayuz hangi rf ile calistigini kullaniciya yaziyor.
+    """
+    rf_daily = rf / periods_per_year
     df = pd.concat([returns.rename("r"), benchmark.rename("b")], axis=1, join="inner").dropna()
-    table, r2 = _ols_table(df["r"], df[["b"]])
+    table, r2 = _ols_table(df["r"] - rf_daily, (df[["b"]] - rf_daily))
     table["factor"] = table["factor"].replace({"b": "Beta (Market)"})
     return table, r2
+
+
+def alpha_t_stat(table):
+    """Regresyon tablosundaki alpha satirinin t-istatistigi. Yoksa None.
+
+    Kart uzerindeki "anlamli mi" rozeti bunu okuyor: pozitif bir alpha tek basina
+    iyi haber degil, sifirdan ayirt edilebiliyor olmasi lazim.
+    """
+    hit = table[table["factor"] == "Alpha"]
+    if hit.empty:
+        return None
+    t = float(hit["t_stat"].iloc[0])
+    return None if pd.isna(t) else t

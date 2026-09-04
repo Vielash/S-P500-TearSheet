@@ -108,8 +108,13 @@ pozitiftir — "fat tails". Rejim projendeki QQ plot bunun görsel hali.
 ### var_historic
 `r.quantile(0.05)`
 
-%95 güvenle "günlük kaybım şundan kötü olmaz" eşiği. Tarihsel yöntem: geçmiş
-dağılımın 5. yüzdeliği, dağılım varsayımı yok. Negatif bir sayı döner.
+Yaklaşık %5 olasılıkla aşılacak kayıp **eşiği**: günlerin ~%5'inde kayıp bundan
+kötü olur. Tarihsel yöntem, dağılım varsayımı yok — geçmiş dağılımın 5.
+yüzdeliği. Negatif bir sayı döner.
+
+Tuzak: VaR "en kötü 20 günün beklenen kaybı" değildir. O tanım CVaR'a karşılık
+gelir. VaR sadece kapının yerini söyler, arkasında ne olduğunu değil — eşiği
+aşan günlerde kaybın ne kadar büyüyebileceği hakkında hiçbir şey söylemez.
 
 ### cvar_historic
 `r[r <= VaR].mean()`
@@ -117,6 +122,18 @@ dağılımın 5. yüzdeliği, dağılım varsayımı yok. Negatif bir sayı dön
 VaR eşiği aşıldığında ortalama ne kadar kaybediyorum? VaR "kapının yeri",
 CVaR "kapının arkasındaki uçurumun derinliği". Her zaman VaR'dan kötüdür
 (testte bu özellik de kontrol ediliyor).
+
+### ulcer_index
+`sqrt(mean(drawdown ** 2))`
+
+Drawdown serisinin karesel ortalamasının karekökü. Max drawdown tek bir günün
+kararına bakar; Ulcer bütün seriye bakar, üstelik kareler yüzünden derin
+düşüşleri sığ olanlardan çok daha ağır tartar. Düşüş uzun sürerse her gün
+toplama yeni bir terim ekler — yani derinliği ve süresi birlikte yansıtır.
+
+Tuzak: "drawdown'da geçirilen süre" değildir. Süre tek başına ölçülseydi 30 gün
+boyunca %1 düşük kalmak, 30 gün boyunca %40 düşük kalmakla aynı sayıyı verirdi;
+Ulcer'da vermez.
 
 ### monthly_return_table
 Günlükleri aya bileşikle: `resample("ME").apply(lambda r: (1+r).prod() - 1)`,
@@ -146,6 +163,9 @@ statsmodels'in bulduğu beta ile seninkinin aynı çıktığını gör.
 ### capm_alpha
 `(mean(r - rf_d) - beta * mean(b - rf_d)) * 252`
 
+Regresyon hâli, iki tarafta da fazla getiri ile:
+`r - rf = alpha + beta * (b - rf) + eps`
+
 Beta'nın açıkladığı kısmı düş, geriye kalan "beceri" (ya da şans). Tearsheet'in
 en üstteki kartı bu. Tuzak: alpha'yı yüksek beta'yla karıştırmak — kaldıraçlı
 piyasa pozisyonu alpha değildir, CAPM tam bunu ayrıştırır.
@@ -153,8 +173,14 @@ piyasa pozisyonu alpha değildir, CAPM tam bunu ayrıştırır.
 ### r_squared
 `corr(r, b) ** 2`
 
-Getirinin yüzde kaçı piyasa hareketiyle açıklanıyor. Tek değişkenli regresyonda
-R² korelasyonun karesine eşittir. 0.9 R² = neredeyse endeks fonu.
+Getiri varyansının yüzde kaçı benchmark tarafından **doğrusal olarak**
+açıklanıyor. Tek değişkenli regresyonda R² korelasyonun karesine eşittir.
+0.9 R² = neredeyse endeks fonu.
+
+Tuzak: düşük R²'yi "bağımsız" diye okumak. R² tek bir doğrunun ne kadar
+açıkladığını ölçer; ilişki doğrusal değilse (opsiyon benzeri getiri, rejime
+bağlı beta) R² düşük çıkar ama seriler pekâlâ bağımlı olabilir. Düşük R²
+"model az açıklıyor" demektir, "ilgisiz" demek değil.
 
 ### correlation — `r.corr(b)`
 Yön birlikteliği, -1 ile 1 arası. Beta'dan farkı: korelasyon "ne kadar beraber",

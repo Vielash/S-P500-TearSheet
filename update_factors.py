@@ -9,7 +9,7 @@ ondalik kullaniyoruz (0.0125), o yuzden 100'e boluyoruz.
 
 import pandas_datareader.data as web
 
-ff = web.DataReader("F-F_Research_Data_5_Factors_2x3_daily", "famafrench", start="2000-01-01")[0]
+ff = web.DataReader("F-F_Research_Data_5_Factors_2x3_daily", "famafrench", start="1963-07-01")[0]
 ff = ff / 100
 ff.columns = ["mkt_rf", "smb", "hml", "rmw", "cma", "rf"]
 ff.index.name = "date"

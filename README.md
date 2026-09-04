@@ -82,15 +82,23 @@ build_universe.py   S&P 500 sembol listesini indirir -> data/sp500.csv
 update_factors.py   gerçek Ken French faktör verisini indirir
 tests/              her metriğin doğruluk testleri
 docs/metrics.md     metrik rehberi: formül + sezgi + tuzak
-data/               örnek getiri ve faktör dosyaları (ikisi de sentetik)
+data/               ff5_daily.csv gerçek Ken French verisi, sample_returns.csv sentetik
 ```
 
 Kodu okuma sırası önerisi: `data.py` → `metrics.py` → `factors.py` → `plots.py` → `app.py`.
 
 ## Notlar
 
-- `data/sample_returns.csv` ve `data/ff5_daily.csv` sentetik örneklerdir, gerçek
-  piyasa verisi değildir. Gerçek faktörler için: `python update_factors.py`
+- `data/ff5_daily.csv` **gerçek** Kenneth French 5 faktör günlük verisidir
+  (1963-07-01'den bugüne). `python update_factors.py` ile tazelenir; kütüphane
+  gecikmeli yayınladığı için son birkaç hafta regresyonun dışında kalabilir.
+- `data/sample_returns.csv` sentetiktir, gerçek piyasa verisi değildir.
+- Faktör dosyası sentetik bir örnekle değiştirilirse uygulama bunu fark eder ve
+  gerçek getirilerde faktör bölümünü açmaz: uydurma faktörlere regresyon anlamsız
+  katsayı üretir.
+- Sharpe, Sortino ve Alpha kenar çubuğundaki yıllık `r_f` değerini kullanır;
+  sayfanın üstünde hangi oranla çalışıldığı yazar. Alpha yalnızca CAPM
+  regresyonundaki t-istatistiği ±1.96'yı aşarsa "significant" etiketi alır.
 - `metrics.py`'daki fonksiyon imzaları sabittir; testler ve `app.py` onları o
   adlarla ve sırayla çağırıyor.
 - `rf` yıllık orandır (0.04 = %4); fonksiyonlar içeride `periods_per_year`'a böler.

@@ -83,9 +83,12 @@ def sign_tone(x):
 # Metinlerin kaynagi docs/metrics.md.
 INFO = {
     "capm_alpha": ("Annual excess return the benchmark's risk cannot explain.",
-                   "The intercept of the CAPM regression, annualized by 252.",
-                   "r = α + β·r_b  →  α × 252",
-                   "Above 0: value the benchmark does not account for."),
+                   "The intercept of the CAPM regression on excess returns, "
+                   "annualized by 252. Both sides are measured above the risk-free "
+                   "rate, so alpha depends on which r_f you assume.",
+                   "r − r_f = α + β(r_b − r_f) + ε   →   α × 252",
+                   "A positive alpha is only news if it is statistically distinct "
+                   "from zero: check the t-statistic, not the sign."),
     "beta": ("How much this series moves when the benchmark moves 1%.",
              "The slope of the return against the benchmark return.",
              "cov(r, r_b) / var(r_b)",
@@ -111,10 +114,13 @@ INFO = {
                      "The deepest distance from the running high of the cumulative value.",
                      "min( cumulative / cumulative.cummax() − 1 )",
                      "Recovery time is a separate question; depth does not show it."),
-    "r_squared": ("How much of the return the market explains.",
-                  "Coefficient of determination of the CAPM regression.",
+    "r_squared": ("Share of the return variance the benchmark explains linearly.",
+                  "Coefficient of determination of the CAPM regression. It measures "
+                  "one straight line and nothing else.",
                   "1 − SS_res / SS_tot",
-                  "Near 0: independent of the market · near 1: it is the market."),
+                  "Near 1: the benchmark accounts for nearly all the movement. Near 0: "
+                  "it accounts for little — which is not the same as independence, "
+                  "since a non-linear link would also show up as a low R²."),
     "total_return": ("Total return over the period.",
                      "Returns do not add up; they compound.",
                      "prod(1 + r) − 1", ""),
@@ -128,19 +134,31 @@ INFO = {
     "worst_day": ("Worst single day of the period.", "", "min(r)", ""),
     "skewness": ("Asymmetry of the distribution; negative = heavy left tail.", "", "", ""),
     "kurtosis": ("Excess kurtosis; 0 = normal distribution.", "", "", ""),
-    "var_historic": ("Expected loss on the worst of 20 days.",
-                     "The 5th percentile of the return distribution.",
-                     "quantile(r, 0.05)", ""),
-    "cvar_historic": ("Average of that worst 5%.",
-                      "Mean loss on the days beyond VaR.",
-                      "mean(r | r ≤ VaR)", ""),
+    "var_historic": ("The loss threshold exceeded on about 1 day in 20.",
+                     "The 5th percentile of the daily return distribution: on roughly "
+                     "5% of days the loss is worse than this. It is a cut-off, not an "
+                     "average — how bad those days get is CVaR's question.",
+                     "quantile(r, 0.05)",
+                     "Says nothing about the size of the losses beyond it."),
+    "cvar_historic": ("Average loss on the days that breach VaR.",
+                      "The mean of the returns worse than the VaR threshold — the "
+                      "expected loss once a bad day is already a bad day.",
+                      "mean(r | r ≤ VaR)",
+                      "Always at least as negative as VaR."),
     "correlation": ("How daily returns move with the benchmark.", "", "corr(r, r_b)", ""),
     "tracking_error": ("Annualized volatility of the return difference.", "",
                        "std(r − r_b) × √252", ""),
     "information_ratio": ("Excess return ÷ tracking error.", "", "", ""),
     "up_capture": ("Share captured while the benchmark rises.", "", "", "Above 100% is good."),
     "down_capture": ("Share taken while the benchmark falls.", "", "", "Below 100% is good."),
-    "ulcer_index": ("Weighted measure of time spent in drawdown.", "", "", ""),
+    "ulcer_index": ("Root mean square of the drawdown series.",
+                    "Squares every day's distance from the running high and takes the "
+                    "root of the mean. Deep drawdowns weigh far more than shallow "
+                    "ones, and a drawdown that persists keeps adding terms — so depth "
+                    "and duration both land in one number.",
+                    "sqrt( mean( drawdown² ) )",
+                    "0 only if the series never leaves its high. Lower is calmer; "
+                    "unlike max drawdown it is not decided by a single worst day."),
     "growth_of_1": ("What one unit invested on day one would be worth.",
                     "The cumulative product of daily returns - the equity curve every "
                     "other chart is read against.",
@@ -178,7 +196,7 @@ GUIDE = [
      ["total_return", "cagr", "growth_of_1", "annual_volatility",
       "sharpe", "sortino", "calmar"]),
     ("Drawdown", "How deep the falls went, and how long they lasted",
-     ["drawdown_series", "max_drawdown"]),
+     ["drawdown_series", "max_drawdown", "ulcer_index"]),
     ("Distribution", "The shape of the daily returns the averages hide",
      ["win_rate", "best_day", "worst_day", "skewness", "kurtosis",
       "var_historic", "cvar_historic", "monthly_return_table"]),

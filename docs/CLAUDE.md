@@ -94,9 +94,10 @@ State between reruns lives in `st.session_state` under the keys listed in
 - **Function signatures in `metrics.py` are frozen.** Both `tests/` and `app.py`
   call them positionally by those exact names.
 - **`rf` is an annual rate.** Every consumer passes e.g. `0.04` for 4%; the
-  function divides by `periods_per_year` internally. See `docs/metrics.md:66`
-  and the hint in the `capm_alpha` docstring. (`app.py` does not currently pass
-  `rf` at all, so the live app runs at `rf=0`.)
+  function divides by `periods_per_year` internally. `app.py` takes it from a
+  sidebar `number_input` (default 0) and threads it into `sharpe`, `sortino`,
+  `rolling_sharpe`, `capm_alpha` and `factors.capm_regression`; the value in use
+  is printed in the page header so no number rests on a hidden assumption.
 - **Returns are decimals, not percents** (0.001 = 0.1%) everywhere, including
   `data/ff5_daily.csv` — that's why `update_factors.py` divides Ken French data
   by 100.
@@ -125,10 +126,16 @@ State between reruns lives in `st.session_state` under the keys listed in
 
 ## Data files are synthetic
 
-`data/sample_returns.csv` and `data/ff5_daily.csv` are both **synthetic
-placeholders**, not real market data (the app badges this at `app.py:355`).
-Never present numbers derived from them as real market facts. Real factors come
-from `python update_factors.py`.
+`data/sample_returns.csv` is a **synthetic placeholder**, not real market data,
+and the app badges it as such. Never present numbers derived from it as real
+market facts.
+
+`data/ff5_daily.csv` is now the **real** Kenneth French 5-factor daily series
+(1963-07-01 onward), refreshed by `python update_factors.py`. If that file is
+ever swapped back for a synthetic sample, `factors.is_synthetic()` detects it and
+`app.py` hides section 04 for real return data rather than showing meaningless
+loadings — regressing real returns on invented factors yields a near-zero R² and
+noise coefficients.
 
 ## Style
 

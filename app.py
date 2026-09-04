@@ -263,7 +263,7 @@ def landing():
             'See your portfolio\'s performance and risk on a single page.</h2>'
             '<p style="margin:14px 0 0;max-width:660px;font:400 15px/1.6 \'IBM Plex Sans\';'
             'color:#c8ccd6">Alpha, Beta, Sharpe, drawdown, rolling risk and Fama-French '
-            'factor exposure — measured against your benchmark. Your data never leaves the browser session.</p>')
+            'factor exposure — measured against your benchmark. Uploaded files are parsed on the server for this session only and are not written to disk or kept afterwards.</p>')
     st.write("")
 
     left, right = st.columns([1.25, 1], gap="large")
@@ -435,6 +435,14 @@ with st.sidebar:
     window = st.segmented_control("Rolling window", list(WINDOWS), default=126,
                                   format_func=lambda w: f"{w}d", key="win") or 126
     st.caption(f"≈ {WINDOWS[window]} window")
+
+    # rf yillik oran. Sharpe, Sortino, rolling Sharpe ve CAPM alpha bunu kullaniyor;
+    # hangi degerle calisildigi sayfanin ustunde de yaziyor ki sayilar havada kalmasin.
+    rf_pct = st.number_input("Risk-free rate (annual %)", min_value=0.0, max_value=25.0,
+                             value=0.0, step=0.25, format="%.2f", key="rf")
+    rf = float(rf_pct) / 100
+    st.caption("Feeds Sharpe, Sortino and Alpha. Leave at 0 to read them as raw "
+               "return per unit of risk.")
     if bench is None:
         st.caption("Benchmark metrics need a second ticker in the file (e.g. SPY).")
     elif bench.upper() in PRICE_ONLY:
@@ -453,6 +461,18 @@ try:
     ff = load_factor_file()
 except FileNotFoundError:
     ff = None
+
+# CAPM regresyonu bir kez kuruluyor: 01 bolumundeki alpha karti anlamlilik rozeti
+# icin t-istatistigini, 04 bolumu de ayni tabloyu okuyor. Regresyon metrics.py'daki
+# capm_alpha'yi ikame etmiyor; kartin degeri hala oradan geliyor, buradan sadece
+# "bu alpha sifirdan ayirt edilebiliyor mu" sorusunun cevabi aliniyor.
+capm_table = capm_r2 = capm_t = None
+if bench:
+    try:
+        capm_table, capm_r2 = factors.capm_regression(r_al, b_al, rf)
+        capm_t = factors.alpha_t_stat(capm_table)
+    except Exception:
+        capm_table = None
 
 
 # --- ortak yardimcilar -------------------------------------------------------
@@ -495,6 +515,9 @@ with tab_main:
     if bench:
         meta.append(f"Benchmark: {bench}")
     meta.append(f"Rolling {window}d")
+    # Sharpe, Sortino ve Alpha hangi risksiz oranla hesaplandi: kullanici bunu
+    # sayfadan okuyabilmeli, yoksa sayilar hangi varsayimla uretildigi belirsiz.
+    meta.append(f"Annual r_f = {rf_pct:.2f}%")
     title_extra = f' <small>vs</small> {bench}' if bench else ""
     badge_html = (ui.badge("Synthetic sample data", "warn") if synthetic else "")
     ui.html(f'<div style="display:flex;justify-content:space-between;align-items:flex-end;'
@@ -510,11 +533,11 @@ with tab_main:
     ui.section("01", "Performance",
                "What it returned, and how much risk was taken to get there")
 
-    alpha_v = val("capm_alpha", r_al, b_al) if bench else None
+    alpha_v = val("capm_alpha", r_al, b_al, rf) if bench else None
     beta_v = val("beta", r_al, b_al) if bench else None
     r2_v = val("r_squared", r_al, b_al) if bench else None
-    sharpe_v = val("sharpe", r)
-    sortino_v = val("sortino", r)
+    sharpe_v = val("sharpe", r, rf)
+    sortino_v = val("sortino", r, rf)
     cagr_v = val("cagr", r)
     vol_v = val("annual_volatility", r)
     mdd_v = val("max_drawdown", r)
@@ -531,12 +554,25 @@ with tab_main:
     elif alpha_v is None:
         cards.append(ui.pending_card("Annualized Alpha", "capm_alpha"))
     else:
+        # Alpha'nin isareti tek basina bir sey soylemiyor. Rozet t-istatistiginden
+        # geliyor: |t| < 1.96 ise deger sifirdan ayirt edilemiyor demektir ve kart
+        # ne yesil ne kirmizi olur — "olcemedik" ile "kotu" ayni sey degil.
+        note = f"Annual excess return {bench} risk cannot explain."
+        if capm_t is None:
+            tone, b_text, b_tone = "neutral", None, "neutral"
+        elif abs(capm_t) >= 1.96:
+            tone = ui.sign_tone(alpha_v)
+            b_text = "▲ SIGNIFICANT" if alpha_v > 0 else "▼ SIGNIFICANT"
+            b_tone = "good" if alpha_v > 0 else "bad"
+            note += f" t = {ui.num(capm_t, 2)}, distinct from zero at 95%."
+        else:
+            tone, b_text, b_tone = "neutral", "NOT SIGNIFICANT", "neutral"
+            note += (f" t = {ui.num(capm_t, 2)} — not distinct from zero, so the "
+                     f"sign is noise as much as skill.")
         cards.append(ui.metric_card(
-            "Annualized Alpha", ui.pct(alpha_v, 2, signed=True),
-            f"Annual excess return the benchmark ({bench}) risk cannot explain.",
-            tone=ui.sign_tone(alpha_v), info_key="capm_alpha",
-            badge_text="▲ GOOD" if alpha_v > 0 else "▼ WATCH",
-            badge_tone="good" if alpha_v > 0 else "bad"))
+            "Annualized Alpha", ui.pct(alpha_v, 2, signed=True), note,
+            tone=tone, info_key="capm_alpha",
+            badge_text=b_text, badge_tone=b_tone))
 
     # Beta
     if not bench:
@@ -644,7 +680,7 @@ with tab_main:
 
     left, right = st.columns(2, gap="medium")
     with left:
-        rs = val("rolling_sharpe", r, window)
+        rs = val("rolling_sharpe", r, window, rf)
         if rs is None:
             ui.pending_chart("rsharpe", "Rolling Sharpe", "rolling_sharpe")
         else:
@@ -697,7 +733,25 @@ with tab_main:
                                 key="ch_heat")
 
     # ---------- 04 · FACTOR EXPOSURE ----------
-    if ff is not None:
+    # Faktor dosyasi sentetikken gercek getirileri ona regres etmek anlamsiz
+    # katsayi uretir: iki seri arasinda hicbir ortak neden yok, R-kare sifira
+    # yakin cikar ve yuklemeler gurultudur. Boyle bir durumda bolumu kapatiyoruz.
+    ff_synth = ff is not None and factors.is_synthetic(ff)
+    ff_usable = ff is not None and not (ff_synth and not synthetic)
+
+    if ff is not None and not ff_usable:
+        ui.section("04", "Factor exposure",
+                   "How much of your return comes from known risk factors?")
+        ui.html('<div class="qt-panel warn"><h4>Factor analysis is off for this data</h4>'
+                '<p>The factor file in <code>data/ff5_daily.csv</code> is a synthetic '
+                'placeholder, but the returns loaded here are real. Regressing real '
+                'returns on invented factors produces coefficients that mean nothing — '
+                'a near-zero R² and loadings that are pure noise — so the section is '
+                'hidden rather than shown with numbers you should not read.</p>'
+                '<p>Run <code>python update_factors.py</code> to pull the real '
+                'Kenneth French series, and this section comes back.</p></div>')
+
+    if ff_usable:
         ui.section("04", "Factor exposure",
                    "How much of your return comes from known risk factors?")
 
@@ -729,9 +783,14 @@ with tab_main:
                   '1%, you gain 0.5%". <span style="color:#c8ccd6">Alpha</span> is what '
                   'none of the five factors explains.</div>')
 
-        note = (" — synthetic sample; for the real thing: python update_factors.py"
-                if ff.index.min().year >= 2023 else "")
-        st.caption(f"Factor data: data/ff5_daily.csv{note}")
+        if ff_synth:
+            st.caption("Factor data: data/ff5_daily.csv — synthetic sample; "
+                       "run python update_factors.py for the real series.")
+        else:
+            st.caption(f"Factor data: Kenneth French 5-factor daily, "
+                       f"{ff.index.min():%Y-%m-%d} → {ff.index.max():%Y-%m-%d}. "
+                       f"The library publishes with a lag, so the last few weeks of "
+                       f"your return series may sit outside the regression window.")
 
         # faktor dosyasiyla ortak gun sayisi az oldugunda regresyon kurulamaz;
         # bu bir hata degil, veri kisitidir — bolum kendi durumunu anlatir
@@ -745,14 +804,14 @@ with tab_main:
         except Exception:
             ff5_table = None
 
-    if ff is not None and ff5_table is None:
+    if ff_usable and ff5_table is None:
         ui.html('<div class="qt-panel warn"><h4>Not enough overlapping days for factor analysis</h4>'
                 '<p>The overlap between your return series and <code>data/ff5_daily.csv</code> '
                 'is too short to fit a regression. Load a longer date range, or pull fresh '
                 'factor data with <code>python update_factors.py</code>.</p>'
                 '</div>')
 
-    if ff is not None and ff5_table is not None:
+    if ff_usable and ff5_table is not None:
         left, right = st.columns([1.35, 1], gap="medium")
         with left:
             if betas.empty:
@@ -782,11 +841,14 @@ with tab_main:
                                 key="ch_fl")
 
         def reg_table(title, table, r2, foot=""):
-            cols = "grid-template-columns:1fr 66px 62px 46px"
+            # Alpha'nin gunluk katsayisi 0.0001 mertebesinde: uc ondalikta 0.000
+            # gorunuyordu. Baz puana cevirince (x 10000) okunur bir sayi oluyor,
+            # faktor yuklemeleri ise zaten 0.1-1.5 araliginda, onlar ondalik kaliyor.
+            cols = "grid-template-columns:1.15fr 92px 78px 52px"
             out = [f'<div class="qt-tbl"><div class="qt-tbl-head"><b>{title}</b>'
                    f'<span>R² {ui.num(r2, 2)}</span></div>',
                    f'<div class="qt-tr head" style="{cols}"><div>FACTOR</div>'
-                   f'<div class="r">COEF</div><div class="r">ANNUAL</div>'
+                   f'<div class="r">COEF</div><div class="r">ANN.</div>'
                    f'<div class="r">t</div></div>']
             for _, row in table.iterrows():
                 is_alpha = row["factor"] == "Alpha"
@@ -797,10 +859,12 @@ with tab_main:
                 ann_color = ("#7fd0ab" if row["annualized"] > 0 else "#eda1a1") \
                     if not pd.isna(row["annualized"]) else "#8b93a3"
                 label_color = "#f2f4f8" if is_alpha else ("#c8ccd6" if mark else "#8b93a3")
+                coef = (f'{ui.num(row["coef"] * 1e4, 1, signed=True)} bp'
+                        if is_alpha else ui.num(row["coef"], 3))
                 out.append(
                     f'<div class="qt-tr" style="{cols}">'
                     f'<div style="color:{label_color}">{name} {mark}</div>'
-                    f'<div class="r">{ui.num(row["coef"], 3)}</div>'
+                    f'<div class="r">{coef}</div>'
                     f'<div class="r" style="color:{ann_color}">{ann}</div>'
                     f'<div class="r">{ui.num(row["t_stat"], 2)}</div></div>')
             legend_note = ("* p&lt;0.05 · ** p&lt;0.01 · *** p&lt;0.001 — rows without a star "
@@ -812,10 +876,12 @@ with tab_main:
         t2 = reg_table("FF3 regression", ff3_table, ff3_r2,
                        "Alpha shifts once profitability and investment are dropped: "
                        "those two were explaining part of the return.")
-        if bench:
-            capm_table, capm_r2 = factors.capm_regression(r_al, b_al)
+        if bench and capm_table is not None:
             t3 = reg_table(f"CAPM (vs {bench})", capm_table, capm_r2,
-                           "Single-factor model: the benchmark alone.")
+                           f"Single-factor model, excess returns on both sides: "
+                           f"(r − r_f) = α + β(r_b − r_f) + ε, with r_f = "
+                           f"{rf_pct:.2f}% annual. Alpha's daily coefficient is shown "
+                           f"in basis points; 1 bp = 0.01%.")
         else:
             t3 = ('<div class="qt-list" style="border-style:dashed;border-color:#454c5a;'
                   'background:#20242c"><div class="qt-list-head" style="border-bottom:'
@@ -826,7 +892,10 @@ with tab_main:
                   '<b>The single-factor CAPM table needs a benchmark</b>'
                   '<p>Add a second ticker (e.g. SPY) to your file and Alpha, Beta and R² '
                   'land here. This is not an error.</p></div></div>')
-        ui.html(f'<div class="qt-grid qt-grid-3">{t1}{t2}{t3}</div>')
+        # Uc tabloyu ayni siraya sikistirinca ANNUAL ve t sutunlari masaustunde
+        # bile iki satira boluniyordu. FF5/FF3 yan yana, CAPM tam genislikte altta.
+        ui.html(f'<div class="qt-grid qt-grid-2">{t1}{t2}</div>'
+                f'<div style="margin-top:14px">{t3}</div>')
 
     # ---------- 05 · DETAILED METRICS ----------
     ui.section("05", "Detailed metrics",
@@ -912,17 +981,16 @@ with tab_main:
         export_rows.append((label, "" if v is None else round(float(v), 6)))
 
     with st.sidebar:
+        # Pasif PDF/PNG dugmeleri "bozuk ozellik" hissi veriyordu; calisan tek yol
+        # kaldi. PDF isteyen tarayicidan yazdirabilir, onu dugme olarak sunmuyoruz.
         ui.html('<span class="qt-sub" style="margin-top:22px">EXPORT</span>')
-        e1, e2, e3 = st.columns(3)
-        e1.button("PDF", disabled=True, key="exp_pdf",
-                  help="Available via your browser: Print → Save as PDF.")
-        e2.button("PNG", disabled=True, key="exp_png",
-                  help="Chart images need kaleido: pip install kaleido")
-        e3.download_button(
-            "CSV",
+        st.download_button(
+            "Download metrics (CSV)",
             pd.DataFrame(export_rows, columns=["metric", "value"]).to_csv(index=False),
-            file_name=f"tearsheet_{ticker}.csv", mime="text/csv", key="exp_csv")
-        st.caption("CSV: the metric table · PDF/PNG via browser print")
+            file_name=f"tearsheet_{ticker}_{r.index.max():%Y%m%d}.csv",
+            mime="text/csv", key="exp_csv", width="stretch")
+        st.caption("Every number on this page as a two-column table. "
+                   "For a PDF, print the page from your browser.")
 
 
 # --- iki hisse karsilastirma -------------------------------------------------
@@ -949,7 +1017,8 @@ with tab_compare:
         with c3:
             ui.html(f'<div class="qt-meta" style="margin-top:26px"><span>{len(a):,} common '
                     f'observations</span><i></i><span>{a.index.min():%Y-%m-%d} → '
-                    f'{a.index.max():%Y-%m-%d}</span></div>')
+                    f'{a.index.max():%Y-%m-%d}</span><i></i>'
+                    f'<span>r_f {rf_pct:.2f}%</span></div>')
 
         # metrik karsilastirmasi: fark sutunu + kazanan hucre
         SPECS = [
@@ -963,6 +1032,9 @@ with tab_compare:
             ("Win Rate", "win_rate", "pct", "up", None),
             ("VaR 95%", "var_historic", "pct", "up", "↑ better"),
         ]
+        # Sharpe ve Sortino risksiz orani ikinci konumsal argüman olarak aliyor;
+        # kenar cubugundaki deger burada da gecerli olsun.
+        RF_METRICS = {"sharpe", "sortino"}
         cols = "grid-template-columns:1.6fr 1fr 1fr 1.1fr"
         out = [f'<div class="qt-tbl"><div class="qt-tbl-head">'
                f'<b>Metric comparison</b><span>Delta = {a_name} − {b_name}</span></div>',
@@ -971,7 +1043,8 @@ with tab_compare:
                f'<div class="r">DELTA</div></div>']
         a_wins = b_wins = 0
         for label, key, kind, direction, hint in SPECS:
-            va, vb = val(key, a), val(key, b)
+            extra = (rf,) if key in RF_METRICS else ()
+            va, vb = val(key, a, *extra), val(key, b, *extra)
             fmt = (lambda v: ui.pct(v, 1)) if kind == "pct" else (lambda v: ui.num(v, 2))
             if va is None or vb is None:
                 out.append(f'<div class="qt-tr" style="{cols}">'
@@ -983,11 +1056,13 @@ with tab_compare:
                 continue
             delta = va - vb
             eps = 0.01 if kind == "pct" else 0.1
-            arrow = "≈" if abs(delta) < eps else ("▲" if delta > 0 else "▼")
             dtxt = ui.pp(delta, 1) if kind == "pct" else ui.num(delta, 2, signed=True)
-            dcolor = "#8b93a3" if arrow == "≈" else (
-                "#8fb3e8" if (delta > 0) == (direction == "up") else "#eab088")
             win_a = (va > vb) if direction == "up" else (va < vb)
+            # Ok, farkin isaretini degil metrigin yonunu anlatiyor: volatilitede
+            # daha yuksek olmak kotu, orada pozitif bir delta asagi ok demek.
+            arrow = "≈" if abs(delta) < eps else ("▲" if win_a else "▼")
+            dcolor = "#8b93a3" if arrow == "≈" else (
+                "#8fb3e8" if win_a else "#eab088")
             if abs(delta) < eps:
                 win_a = None
             elif win_a:
@@ -1006,7 +1081,8 @@ with tab_compare:
                   f"{max(a_wins, b_wins)} of {len(SPECS)} rows"
                   if a_wins or b_wins else "No comparable metric yet")
         out.append(f'<div class="qt-tbl-foot"><span>Highlighted cell = winner of that row · '
-                   f'▲/▼ in favour of / against {a_name}</span>'
+                   f'▲/▼ = better / worse for {a_name} on that metric, not the raw sign '
+                   f'of the delta</span>'
                    f'<span>{leader}</span></div></div>')
         table_html = "".join(out)
 
@@ -1090,11 +1166,14 @@ with tab_guide:
     ui.html('<div class="qt-panel" style="margin:16px 0 4px">'
             '<h4>How to read these</h4><p>'
             'Returns are decimals, not percents: 0.001 is 0.1%. Annualization uses '
-            '252 trading days. The risk-free rate is an annual figure and each '
-            'function divides it down internally. Benchmark metrics use only the days '
-            'both series have in common, so they can rest on a shorter sample than '
-            'the rest of the sheet. Longer write-ups, with the traps, live in '
-            '<code>docs/metrics.md</code>.</p></div>')
+            '252 trading days. Benchmark metrics use only the days both series have '
+            'in common, so they can rest on a shorter sample than the rest of the '
+            'sheet. Longer write-ups, with the traps, live in '
+            '<code>docs/metrics.md</code>.</p>'
+            f'<p>Sharpe, Sortino and Alpha on this run assume an annual risk-free '
+            f'rate of <code>{rf_pct:.2f}%</code>; change it in the sidebar. A positive '
+            f'Alpha is reported as significant only when the CAPM regression puts its '
+            f't-statistic beyond ±1.96.</p></div>')
     ui.guide(ui.STATUS)
 
 
