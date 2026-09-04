@@ -96,9 +96,14 @@ Kodu okuma sırası önerisi: `data.py` → `metrics.py` → `factors.py` → `p
 - Faktör dosyası sentetik bir örnekle değiştirilirse uygulama bunu fark eder ve
   gerçek getirilerde faktör bölümünü açmaz: uydurma faktörlere regresyon anlamsız
   katsayı üretir.
-- Sharpe, Sortino ve Alpha kenar çubuğundaki yıllık `r_f` değerini kullanır;
-  sayfanın üstünde hangi oranla çalışıldığı yazar. Alpha yalnızca CAPM
-  regresyonundaki t-istatistiği ±1.96'yı aşarsa "significant" etiketi alır.
+- Risksiz oran bir ayar değil, **veriden türetilir**: faktör dosyasındaki
+  günlük 1 aylık hazine bonosu oranının analiz dönemi ortalaması. Yani yüklediğin
+  tarih aralığıyla birlikte değişir (2021'de ~%0, 2023-2026'da ~%4.8) ve
+  Sharpe/Sortino/Alpha ile FF regresyonu aynı kaynağı paylaşır. Kenar çubuğunda
+  ve sayfanın üstünde hangi oranın kullanıldığı yazar; ortak gün yoksa 0'a düşer
+  ve bunu söyler.
+- Alpha yalnızca CAPM regresyonundaki t-istatistiği ±1.96'yı aşarsa
+  "significant" etiketi alır.
 - `metrics.py`'daki fonksiyon imzaları sabittir; testler ve `app.py` onları o
   adlarla ve sırayla çağırıyor.
 - `rf` yıllık orandır (0.04 = %4); fonksiyonlar içeride `periods_per_year`'a böler.

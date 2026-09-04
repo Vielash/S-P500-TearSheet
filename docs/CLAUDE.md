@@ -94,10 +94,14 @@ State between reruns lives in `st.session_state` under the keys listed in
 - **Function signatures in `metrics.py` are frozen.** Both `tests/` and `app.py`
   call them positionally by those exact names.
 - **`rf` is an annual rate.** Every consumer passes e.g. `0.04` for 4%; the
-  function divides by `periods_per_year` internally. `app.py` takes it from a
-  sidebar `number_input` (default 0) and threads it into `sharpe`, `sortino`,
-  `rolling_sharpe`, `capm_alpha` and `factors.capm_regression`; the value in use
-  is printed in the page header so no number rests on a hidden assumption.
+  function divides by `periods_per_year` internally. `app.py` does not ask the
+  user for it: `factors.risk_free_annual(ff, r.index)` averages the daily
+  1-month T-bill column of the factor file over the loaded dates, and that
+  scalar is threaded into `sharpe`, `sortino`, `rolling_sharpe`, `capm_alpha`
+  and `factors.capm_regression`. It therefore moves with the date range. With no
+  overlapping factor days it falls back to 0 and the sidebar says so. The value
+  in use is printed in the page header, so no number rests on a hidden
+  assumption.
 - **Returns are decimals, not percents** (0.001 = 0.1%) everywhere, including
   `data/ff5_daily.csv` — that's why `update_factors.py` divides Ken French data
   by 100.

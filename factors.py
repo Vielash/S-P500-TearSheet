@@ -32,6 +32,28 @@ def is_synthetic(ff):
     return ff is None or len(ff) == 0 or ff.index.min().year >= 1990
 
 
+def risk_free_annual(ff, index, periods_per_year=TRADING_DAYS):
+    """Analiz doneminde gecerli olan ortalama risksiz oran, yillik ondalik.
+
+    ff["rf"] Ken French'in gunluk 1 aylik hazine bonosu getirisi. Sharpe, Sortino
+    ve capm_alpha imzalari tek bir skaler bekliyor, o yuzden serinin kapsadigi
+    gunlerin ortalamasini alip yilliga ceviriyoruz: "bu donemde nakit ne
+    kazandirdi" sorusunun tek sayilik cevabi.
+
+    Donen deger (yillik_oran, kapsanan_gun_sayisi). Ortak gun yoksa (None, 0) —
+    cagiran taraf o zaman 0'a duser ve bunu kullaniciya soyler.
+
+    Dosya gunluk oranlari dort ondalikla tutuyor, yani tek bir gun kaba; ortalama
+    bircok gunu topladigi icin cozunurluk geri geliyor.
+    """
+    if ff is None or "rf" not in ff.columns:
+        return None, 0
+    daily = ff["rf"].reindex(index).dropna()
+    if daily.empty:
+        return None, 0
+    return float(daily.mean()) * periods_per_year, len(daily)
+
+
 def _ols_table(y, X):
     """OLS kurup videodakine benzer ozet tablo dondurur: (tablo, r_kare).
 

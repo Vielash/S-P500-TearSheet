@@ -436,13 +436,7 @@ with st.sidebar:
                                   format_func=lambda w: f"{w}d", key="win") or 126
     st.caption(f"≈ {WINDOWS[window]} window")
 
-    # rf yillik oran. Sharpe, Sortino, rolling Sharpe ve CAPM alpha bunu kullaniyor;
-    # hangi degerle calisildigi sayfanin ustunde de yaziyor ki sayilar havada kalmasin.
-    rf_pct = st.number_input("Risk-free rate (annual %)", min_value=0.0, max_value=25.0,
-                             value=0.0, step=0.25, format="%.2f", key="rf")
-    rf = float(rf_pct) / 100
-    st.caption("Feeds Sharpe, Sortino and Alpha. Leave at 0 to read them as raw "
-               "return per unit of risk.")
+    rf_slot = st.container()
     if bench is None:
         st.caption("Benchmark metrics need a second ticker in the file (e.g. SPY).")
     elif bench.upper() in PRICE_ONLY:
@@ -461,6 +455,34 @@ try:
     ff = load_factor_file()
 except FileNotFoundError:
     ff = None
+
+# Faktor dosyasi sentetikken gercek getirilerle birlikte kullanilamaz: ne
+# yuklemeleri anlamli olur ne de rf kolonu. Ikisi de sentetikse kendi icinde
+# tutarli, o zaman kullanilabilir. 04. bolum de ayni bayragi okuyor.
+ff_synth = ff is not None and factors.is_synthetic(ff)
+ff_usable = ff is not None and not (ff_synth and not synthetic)
+
+# Risksiz oran secilmiyor, veriden geliyor: Ken French'in gunluk 1 aylik hazine
+# bonosu orani, analiz doneminin ortalamasi. Boylece Sharpe/Sortino/alpha ile
+# FF regresyonu ayni rf kaynagini paylasiyor.
+rf, rf_days = factors.risk_free_annual(ff, r.index) if ff_usable else (None, 0)
+rf_known = rf is not None
+if not rf_known:
+    rf = 0.0
+rf_pct = rf * 100
+
+with rf_slot:
+    ui.html('<span class="qt-sub" style="margin-top:16px">RISK-FREE RATE</span>'
+            f'<div style="font:600 18px/1.2 \'IBM Plex Mono\';color:#f2f4f8">'
+            f'{rf_pct:.2f}%<span style="font:400 11px/1 \'IBM Plex Sans\';'
+            f'color:#8b93a3;margin-left:6px">annual</span></div>')
+    if rf_known:
+        cover = "" if rf_days >= len(r) else f" — covers {rf_days:,} of {len(r):,} days"
+        st.caption(f"1-month T-bill (Kenneth French), averaged over this "
+                   f"window{cover}. Feeds Sharpe, Sortino and Alpha.")
+    else:
+        st.caption("No overlapping risk-free data for these dates, so Sharpe, "
+                   "Sortino and Alpha are computed at 0%.")
 
 # CAPM regresyonu bir kez kuruluyor: 01 bolumundeki alpha karti anlamlilik rozeti
 # icin t-istatistigini, 04 bolumu de ayni tabloyu okuyor. Regresyon metrics.py'daki
@@ -517,7 +539,7 @@ with tab_main:
     meta.append(f"Rolling {window}d")
     # Sharpe, Sortino ve Alpha hangi risksiz oranla hesaplandi: kullanici bunu
     # sayfadan okuyabilmeli, yoksa sayilar hangi varsayimla uretildigi belirsiz.
-    meta.append(f"Annual r_f = {rf_pct:.2f}%")
+    meta.append(f"r_f {rf_pct:.2f}%" + ("" if rf_known else " (no data)"))
     title_extra = f' <small>vs</small> {bench}' if bench else ""
     badge_html = (ui.badge("Synthetic sample data", "warn") if synthetic else "")
     ui.html(f'<div style="display:flex;justify-content:space-between;align-items:flex-end;'
@@ -739,12 +761,8 @@ with tab_main:
     # val() metrikler icin ne yapiyorsa, bu sarmalayici da bolum icin onu yapiyor:
     # hata bolumun kendi icinde kalir, tearsheet'in kalani ayakta durur.
     try:
-        # Faktor dosyasi sentetikken gercek getirileri ona regres etmek anlamsiz
-        # katsayi uretir: iki seri arasinda hicbir ortak neden yok, R-kare sifira
-        # yakin cikar ve yuklemeler gurultudur. Boyle bir durumda bolumu kapatiyoruz.
-        ff_synth = ff is not None and factors.is_synthetic(ff)
-        ff_usable = ff is not None and not (ff_synth and not synthetic)
-
+        # ff_synth / ff_usable yukarida, rf ile birlikte hesaplandi: sentetik bir
+        # faktor dosyasina gercek getiri regres etmek anlamsiz katsayi uretir.
         if ff is not None and not ff_usable:
             ui.section("04", "Factor exposure",
                        "How much of your return comes from known risk factors?")
@@ -797,6 +815,19 @@ with tab_main:
                            f"{ff.index.min():%Y-%m-%d} → {ff.index.max():%Y-%m-%d}. "
                            f"The library publishes with a lag, so the last few weeks of "
                            f"your return series may sit outside the regression window.")
+
+            # Sentetik getiriyi gercek faktore regres etmek, tersi kadar anlamsiz:
+            # ortak neden yok, R-kare sifira yakin cikiyor. Bolumu gizlemiyoruz —
+            # ornek veri yolunda duzenin nasil gorundugu gorulsun — ama sayilarin
+            # okunacak sey olmadigi burada acikca yaziyor.
+            if synthetic:
+                ui.html('<div class="qt-panel warn" style="margin:10px 0 4px">'
+                        '<h4>These loadings are illustrative, not a real exposure</h4>'
+                        '<p>The sample returns are synthetic while the factors are '
+                        'real, so nothing connects the two series: expect an R² near '
+                        'zero and coefficients that are noise. The section stays '
+                        'visible to show the layout — load your own data or fetch '
+                        'live prices for numbers worth reading.</p></div>')
 
             # faktor dosyasiyla ortak gun sayisi az oldugunda regresyon kurulamaz;
             # bu bir hata degil, veri kisitidir — bolum kendi durumunu anlatir
@@ -886,7 +917,8 @@ with tab_main:
                 t3 = reg_table(f"CAPM (vs {bench})", capm_table, capm_r2,
                                f"Single-factor model, excess returns on both sides: "
                                f"(r − r_f) = α + β(r_b − r_f) + ε, with r_f = "
-                               f"{rf_pct:.2f}% annual. Alpha's daily coefficient is shown "
+                               f"{rf_pct:.2f}% annual, taken from the factor file rather "
+                           f"than assumed. Alpha's daily coefficient is shown "
                                f"in basis points; 1 bp = 0.01%.")
             else:
                 t3 = ('<div class="qt-list" style="border-style:dashed;border-color:#454c5a;'
@@ -1184,10 +1216,12 @@ with tab_guide:
             'in common, so they can rest on a shorter sample than the rest of the '
             'sheet. Longer write-ups, with the traps, live in '
             '<code>docs/metrics.md</code>.</p>'
-            f'<p>Sharpe, Sortino and Alpha on this run assume an annual risk-free '
-            f'rate of <code>{rf_pct:.2f}%</code>; change it in the sidebar. A positive '
-            f'Alpha is reported as significant only when the CAPM regression puts its '
-            f't-statistic beyond ±1.96.</p></div>')
+            f'<p>Sharpe, Sortino and Alpha use an annual risk-free rate of '
+            f'<code>{rf_pct:.2f}%</code>. It is not a setting: it is the 1-month '
+            f'Treasury bill rate from the Kenneth French daily file, averaged over '
+            f'the dates this analysis covers, so it moves with the period you load. '
+            f'A positive Alpha is reported as significant only when the CAPM '
+            f'regression puts its t-statistic beyond ±1.96.</p></div>')
     ui.guide(ui.STATUS)
 
 
