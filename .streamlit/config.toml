@@ -1,6 +1,10 @@
 [theme]
 base = "dark"
-primaryColor = "#3987e5"
-backgroundColor = "#0d0d0d"
-secondaryBackgroundColor = "#1a1a19"
-textColor = "#ffffff"
+primaryColor = "#8fb3e8"
+backgroundColor = "#1b1f26"
+secondaryBackgroundColor = "#242932"
+textColor = "#f2f4f8"
+
+[server]
+# tearsheet CSV'leri kucuk dosyalar; canlida 200 MB'lik varsayilani acik tutmanin anlami yok
+maxUploadSize = 10

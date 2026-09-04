@@ -1,11 +1,13 @@
 # Quant Tearsheet
 
-Getiri CSV'sinden tam bir quant tearsheet üreten Streamlit uygulaması:
+Getiri verisinden tam bir quant tearsheet üreten Streamlit uygulaması:
 CAPM alpha & beta, Fama-French faktör yüklemeleri, rolling metrikler,
 drawdown analizi ve iki hisse karşılaştırması.
 
-Buradaki tek eksik parça sensin: `metrics.py` içindeki fonksiyonların gövdeleri
-boş. Sen doldurdukça testler yeşile döner, arayüzdeki kartlar canlanır.
+Bir öğrenme projesi olarak yazıldı: arayüz, tasarım sistemi, grafikler ve testler
+hazır geldi, `metrics.py`'daki 28 metriğin hepsini ben tek tek doldurdum.
+`pytest` bu yüzden bir doğruluk kanıtı — her metrik bilinen bir beklenen değere
+karşı test ediliyor.
 
 ## Kurulum ve çalıştırma
 
@@ -14,19 +16,30 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Açılınca "Load sample data" ile örnek veriyi yükle (sentetiktir, gerçek piyasa
-verisi değildir) ya da kendi CSV'ni sürükle.
+Testleri ve veri indirme betiklerini de çalıştıracaksan:
 
-## Çalışma düzeni
+```
+pip install -r requirements-dev.txt
+pytest -v
+```
 
-1. `metrics.py`'da sıradaki fonksiyonu doldur (yukarıdan aşağıya kolaydan zora).
-2. `pytest -v -k <fonksiyon_adi>` ile kontrol et. Yeşilse doğru.
-3. `streamlit run app.py` — o metriğin kartı/grafiği artık dolu.
-4. Kavram için `docs/metrics.md`'deki bölümü oku (formül + sezgi + tuzak).
+## Veri girişi
 
-`pytest -v` toplam durumu gösterir: skip = daha yazılmadı, passed = doğru.
+Açılış ekranında üç yol var:
 
-## CSV formatı
+1. **Kendi CSV'ni sürükle** — aşağıdaki formatta.
+2. **Try with sample data** — `data/sample_returns.csv`. Bu dosya sentetiktir,
+   gerçek piyasa verisi değildir; uygulama da kaynağın yanında bunu belirtir.
+3. **Fetch live prices** — sembol ve tarih aralığı seç, `market.py` üzerinden
+   `yfinance` ile Yahoo Finance'ten düzeltilmiş kapanışları çeker. Sembol listesi
+   `data/sp500.csv`'den gelir; `python build_universe.py` onu Wikipedia'dan
+   tazeler. `yfinance` kurulu değilse uygulama yine açılır, sadece bu bölüm
+   görünmez.
+
+Üç yol da aynı yere bağlanır: `data.load_returns()` → uzun tablo → `returns_wide()`.
+Uygulamanın geri kalanı verinin nereden geldiğini bilmez.
+
+### CSV formatı
 
 ```
 date,ticker,price,return
@@ -34,35 +47,56 @@ date,ticker,price,return
 2023-01-03,AAPL,124.8412,-0.00127
 ```
 
-- Uzun format: her satır bir gün × bir ticker. Benchmark'ı (örn. SPY) da aynı
-  dosyaya ayrı ticker olarak koy.
+- Uzun format: her satır bir gün × bir ticker. Benchmark'ı da aynı dosyaya ayrı
+  ticker olarak koy. Uygulama varsayılan benchmark'ı `^SP500TR` → `SPY` sırasıyla
+  seçer; ikisi de toplam getiri serisidir. `^GSPC` koyma — salt fiyat endeksidir,
+  temettü içermez ve düzeltilmiş fiyatlarla kıyaslanınca alpha'yı şişirir
+  (uygulama seçersen uyarıyor).
 - `price` düzeltilmiş kapanış (adjusted close) olmalı, `return` basit getiri
   (0.001 = %0.1). `return` yoksa fiyattan hesaplanır.
 - Kolon adları esnek: price/close/adj_close, return/ret kabul edilir.
 
-Veriyi kendin hazırlıyorsun (yfinance ile çek, bu formata dönüştür) — bu bilinçli
-bir tercih, ilk alıştırma o.
+## Arayüz
 
-## Dosya yapısı ve okuma sırası
+Üç sekme var. **Tearsheet** beş numaralı bölümde bütün metrikleri ve grafikleri
+gösterir. **Compare** iki tickerı yan yana koyar. **Metric guide** her metriğin
+tanımını, formülünü ve yorum aralığını tek sayfada toplar; yanındaki rozet o
+metriğin bu veride hazır mı, bekliyor mu, hata mı verdiğini söyler. Kartların ve
+grafiklerin başlığındaki `?` imleci aynı açıklamayı yerinde açar. Metinlerin tek
+kaynağı `ui.INFO`.
+
+Yarım kalmış bir metrik uygulamayı düşürmez: yazılmamışsa "NOT READY", patlıyorsa
+o kartta "ERROR" görünür, sayfanın kalanı çalışmaya devam eder.
+
+## Dosya yapısı
 
 ```
-app.py              Streamlit arayüzü          (hazır)
-data.py             CSV okuma, pivot, hizalama (hazır)
-metrics.py          metrik hesapları           (SEN yazacaksın)
-factors.py          CAPM + Fama-French regresyonları, statsmodels (hazır)
-plots.py            Plotly grafikleri          (hazır)
-update_factors.py   gerçek Ken French verisini indirir (kendi makinende çalıştır)
+app.py              Streamlit arayüzü, beş bölüm + Compare + Metric guide
+ui.py               tasarım sistemi: renk token'ları, CSS, kartlar, metrik metinleri
+data.py             CSV okuma, uzun->geniş pivot, seri hizalama
+market.py           Yahoo Finance'ten fiyat çekme (yfinance)
+metrics.py          28 metriğin hesabı
+factors.py          CAPM + Fama-French regresyonları (statsmodels)
+plots.py            Plotly grafikleri, ui.py ile aynı temada
+build_universe.py   S&P 500 sembol listesini indirir -> data/sp500.csv
+update_factors.py   gerçek Ken French faktör verisini indirir
 tests/              her metriğin doğruluk testleri
-docs/metrics.md     metrik rehberi
-data/               örnek veri + faktör dosyası (ikisi de sentetik örnek)
+docs/metrics.md     metrik rehberi: formül + sezgi + tuzak
+data/               örnek getiri ve faktör dosyaları (ikisi de sentetik)
 ```
 
 Kodu okuma sırası önerisi: `data.py` → `metrics.py` → `factors.py` → `plots.py` → `app.py`.
 
 ## Notlar
 
-- `data/ff5_daily.csv` sentetik bir örnektir. Gerçeğini indirmek için (internet
-  gerekli): `python update_factors.py`
-- Fonksiyon imzalarını değiştirme; testler ve app o imzalara göre çağırıyor.
-- Bir metrikte takılırsan testin beklediği değerle kendi sonucunu karşılaştır,
-  `docs/metrics.md`'deki tuzak notuna bak.
+- `data/sample_returns.csv` ve `data/ff5_daily.csv` sentetik örneklerdir, gerçek
+  piyasa verisi değildir. Gerçek faktörler için: `python update_factors.py`
+- `metrics.py`'daki fonksiyon imzaları sabittir; testler ve `app.py` onları o
+  adlarla ve sırayla çağırıyor.
+- `rf` yıllık orandır (0.04 = %4); fonksiyonlar içeride `periods_per_year`'a böler.
+- Getiriler her yerde ondalıktır, yüzde değil.
+
+## Sorumluluk reddi
+
+Bu proje eğitim amaçlıdır. Ürettiği sayılar yatırım tavsiyesi değildir. Piyasa
+verisi Yahoo Finance'ten gelir; doğruluğu ya da sürekliliği garanti edilmez.

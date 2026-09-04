@@ -5,8 +5,6 @@ import pandas as pd
 
 TRADING_DAYS = 252
 
-
-
 def total_return(returns: pd.Series) -> float:
     out = np.prod(1 + returns) - 1
     return out
@@ -24,7 +22,12 @@ def cagr(returns: pd.Series, periods_per_year: int = TRADING_DAYS) -> float:
     calculate_cagr = total_growth**(1/years) - 1
     return calculate_cagr
 
-# 2) risk
+def ulcer_index(returns: pd.Series, periods_per_year: int = TRADING_DAYS) -> float:
+    wealth = (1 + returns).cumprod()
+    running_peak = wealth.cummax().clip(lower=1.0)
+    drawdown = wealth / running_peak - 1
+    ui = np.sqrt(np.mean(drawdown ** 2))
+    return ui
 
 def annual_volatility(returns: pd.Series, periods_per_year: int = TRADING_DAYS) -> float:
     daily_vol = np.std(returns, ddof=1)
@@ -34,7 +37,7 @@ def annual_volatility(returns: pd.Series, periods_per_year: int = TRADING_DAYS) 
 def drawdown_series(returns: pd.Series) -> pd.Series:
     growth = (1+ returns).cumprod()
     peak = growth.cummax() 
-    drawdown = (growth - peak)/ peak * 100
+    drawdown = (growth - peak)/ peak 
     return drawdown
 
 
@@ -44,169 +47,149 @@ def max_drawdown(returns: pd.Series) -> float:
     return mdd_value
 
 
-# 3) riske gore getiri
-
 def sharpe(returns: pd.Series, rf: float = 0.0, periods_per_year: int = TRADING_DAYS) -> float:
-    daily_volatility = returns.std()
-    annual_volatiltiy = daily_volatility * np.sqrt(periods_per_year)
-
-    excess_return = returns - rf
-    daily_sharpe = excess_return.mean() / excess_return.std()
-    sharpe_ratio  = daily_sharpe * np.sqrt(periods_per_year)
-
+    excess_return = returns - rf/periods_per_year
+    daily_sharpe = excess_return.mean() / (excess_return.std() + 1e-8)
+    sharpe_ratio = daily_sharpe * np.sqrt(periods_per_year)
     return sharpe_ratio
 
 
 def sortino(returns: pd.Series, rf: float = 0.0, periods_per_year: int = TRADING_DAYS) -> float:
-    downside_std = sqrt(mean)
-    """Sortino: Sharpe gibi ama paydada sadece asagi yonlu oynaklik var.
-
-    Ipucu: excess = r - rf/periods_per_year
-           downside = sqrt(mean(clip(excess, upper=0) ** 2))  <- TUM gunler uzerinden ortalama
-           mean(excess) / downside * sqrt(periods_per_year)
-    """
-    raise NotImplementedError
+    rf_daily = rf/periods_per_year
+    downside_diff = (returns - rf_daily).clip(upper = 0)
+    squared_diff = downside_diff **2
+    downside_std = np.sqrt(np.mean(squared_diff))
+    sortino_daily = ((returns - rf_daily).mean()) / (downside_std + 1e-8)
+    sortino_annual = sortino_daily * np.sqrt(periods_per_year) 
+    return sortino_annual
 
 
 def calmar(returns: pd.Series, periods_per_year: int = TRADING_DAYS) -> float:
-    """Calmar: CAGR / |max drawdown|."""
-    raise NotImplementedError
-
-
-# 4) dagilim ve gunler
+    cagr_ratio  = cagr(returns,periods_per_year)
+    maximum_drawndown = max_drawdown(returns)
+    calmar = cagr_ratio/np.abs(maximum_drawndown)
+    return calmar
 
 def win_rate(returns: pd.Series) -> float:
-    """Pozitif gecen gunlerin orani (0 ile 1 arasi)."""
-    raise NotImplementedError
+    wins = (returns > 0).sum()
+    total = len(returns)
+    win_rates = wins/total
+    return win_rates
 
 
 def best_day(returns: pd.Series) -> float:
-    """En iyi gunun getirisi."""
-    raise NotImplementedError
+    best_day_return = returns.max()
+    return best_day_return
 
 
 def worst_day(returns: pd.Series) -> float:
-    """En kotu gunun getirisi."""
-    raise NotImplementedError
+    worst_day_return = returns.min()
+    return worst_day_return
 
 
 def skewness(returns: pd.Series) -> float:
-    """Carpiklik. pandas'in .skew() metoduyla ayni sonucu vermeli."""
-    raise NotImplementedError
+    skew = returns.skew()
+    return skew
 
 
 def kurtosis(returns: pd.Series) -> float:
-    """Basiklik (excess kurtosis). pandas'in .kurt() metoduyla ayni sonucu vermeli."""
-    raise NotImplementedError
+    kurtosisis = returns.kurtosis()
+    return kurtosisis
 
 
 def var_historic(returns: pd.Series, level: float = 0.05) -> float:
-    """Tarihsel VaR: getirilerin level'inci yuzdelik dilimi (kotu gun esigi, negatif cikar).
-
-    Ipucu: returns.quantile(level)
-    """
-    raise NotImplementedError
+    VaR = returns.quantile(level)
+    return VaR
 
 
 def cvar_historic(returns: pd.Series, level: float = 0.05) -> float:
-    """CVaR / Expected Shortfall: VaR esiginin ALTINDA kalan gunlerin ortalamasi.
-
-    Ipucu: returns[returns <= var_historic(returns, level)].mean()
-    """
-    raise NotImplementedError
-
+    var_threshold = returns.quantile(level)
+    CVaR_value = returns[returns < var_threshold].mean()
+    return CVaR_value
 
 def monthly_return_table(returns: pd.Series) -> pd.DataFrame:
-    """Ay ay bilesik getiri tablosu: satir = yil, kolon = ay (1-12).
+    monthly_returns = returns.resample("ME").apply(lambda x: (1 + x).prod() - 1)
 
-    Ipucu: once aylik bilesik getiri -> resample("ME").apply(...)
-           sonra yil/ay pivotu. Isi haritasi bu tablodan cizilecek.
-    """
-    raise NotImplementedError
+    
+    monthly_returns.index = pd.MultiIndex.from_arrays(
+        [monthly_returns.index.year, monthly_returns.index.month], 
+        names=["Year", "Month"]
+    )
+    heatmap_table = monthly_returns.unstack(level="Month")
+    
+    return heatmap_table
 
 
-# 5) benchmark'a gore (iki seri ayni gunlere hizali gelir, data.align_pair halleder)
 
 def beta(returns: pd.Series, benchmark: pd.Series) -> float:
-    """CAPM beta: piyasa 1 birim oynayinca sen kac birim oynuyorsun.
-
-    Ipucu: cov(r, b) / var(b)  (pandas .cov ve .var isini gorur)
-    """
-    raise NotImplementedError
+    cov_matrix = np.cov(returns,benchmark)
+    cov_ri_rm = cov_matrix[0,1]
+    variance_market = np.var(benchmark,ddof = 1)
+    beta = cov_ri_rm/variance_market
+    return beta
 
 
 def capm_alpha(returns: pd.Series, benchmark: pd.Series, rf: float = 0.0,
                periods_per_year: int = TRADING_DAYS) -> float:
-    """Yillik CAPM alpha: beta'nin acikladigi kismin ustunde kalan getiri.
-
-    Ipucu: rd = rf / periods_per_year
-           gunluk_alpha = mean(r - rd) - beta * mean(b - rd)
-           gunluk_alpha * periods_per_year
-    """
-    raise NotImplementedError
+    rf_daily = rf/periods_per_year
+    daily_alpha = np.mean(returns -rf_daily) - (beta(returns,benchmark) * np.mean(benchmark - rf_daily))
+    annual_alpha = periods_per_year * daily_alpha 
+    return annual_alpha
 
 
 def r_squared(returns: pd.Series, benchmark: pd.Series) -> float:
-    """Getirinin ne kadari piyasayla aciklaniyor. Ipucu: korelasyonun karesi."""
-    raise NotImplementedError
+    correlation = returns.corr(benchmark)
+    r_2 = correlation **2
+    return r_2
 
 
 def correlation(returns: pd.Series, benchmark: pd.Series) -> float:
-    """Iki serinin korelasyonu."""
-    raise NotImplementedError
+    corrr = returns.corr(benchmark)
+    return corrr
 
 
 def tracking_error(returns: pd.Series, benchmark: pd.Series,
                    periods_per_year: int = TRADING_DAYS) -> float:
-    """Benchmark'tan sapmanin yillik oynakligi.
 
-    Ipucu: aktif = r - b; std(aktif, ddof=1) * sqrt(periods_per_year)
-    """
-    raise NotImplementedError
+    error = returns - benchmark
+    tracking_err = error.std(ddof = 1) * np.sqrt(periods_per_year)
+    return tracking_err
 
 
 def information_ratio(returns: pd.Series, benchmark: pd.Series,
                       periods_per_year: int = TRADING_DAYS) -> float:
-    """Benchmark'i yenme becerisi / bunun icin alinan aktif risk.
-
-    Ipucu: aktif = r - b; mean(aktif) / std(aktif, ddof=1) * sqrt(periods_per_year)
-    """
-    raise NotImplementedError
-
+   
+    excess = returns - benchmark
+    ratio = excess.mean() / excess.std(ddof = 1) * np.sqrt(periods_per_year)
+    return ratio
 
 def up_capture(returns: pd.Series, benchmark: pd.Series) -> float:
-    """Piyasanin YUKARI gunlerinde onun kacta kacini yakaliyorsun.
-
-    Ipucu: mean(r[b > 0]) / mean(b[b > 0])
-    """
-    raise NotImplementedError
-
+    up_days = benchmark > 0
+    up_captures = returns[up_days].mean() / benchmark[up_days].mean() 
+    return up_captures
 
 def down_capture(returns: pd.Series, benchmark: pd.Series) -> float:
-    """Piyasanin ASAGI gunlerinde dususun kacta kacini yiyorsun (dusuk olmasi iyi).
-
-    Ipucu: mean(r[b < 0]) / mean(b[b < 0])
-    """
-    raise NotImplementedError
+    down_days = benchmark < 0
+    down_captures = returns[down_days].mean() / benchmark[down_days].mean() 
+    return down_captures
 
 
-# 6) rolling (kayan pencere) - grafiklerde kullanilacak
 
 def rolling_volatility(returns: pd.Series, window: int,
                        periods_per_year: int = TRADING_DAYS) -> pd.Series:
-    """Kayan pencerede yillik volatilite. Ipucu: rolling(window).std() * sqrt(...)"""
-    raise NotImplementedError
-
+    rolling_vol = returns.rolling(window = window).std() * np.sqrt(periods_per_year)
+    return rolling_vol
 
 def rolling_sharpe(returns: pd.Series, window: int, rf: float = 0.0,
                    periods_per_year: int = TRADING_DAYS) -> pd.Series:
-    """Kayan pencerede Sharpe. Ipucu: rolling mean / rolling std (ddof=1) * sqrt(...)"""
-    raise NotImplementedError
-
+    
+    rf_daily = rf/periods_per_year
+    excess = returns - rf_daily
+    rol_sharpe = (excess.rolling(window = window).mean() / returns.rolling(window= window).std()) * np.sqrt(periods_per_year)
+    return rol_sharpe
 
 def rolling_beta(returns: pd.Series, benchmark: pd.Series, window: int) -> pd.Series:
-    """Kayan pencerede beta.
-
-    Ipucu: returns.rolling(window).cov(benchmark) / benchmark.rolling(window).var()
-    """
-    raise NotImplementedError
+    rolling_cov = returns.rolling(window = window).cov(benchmark)
+    rolling_var = benchmark.rolling(window = window).var()
+    rol_beta = rolling_cov/rolling_var
+    return rol_beta

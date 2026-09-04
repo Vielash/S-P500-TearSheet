@@ -1,6 +1,6 @@
 import pandas as pd
 
-# kabul edilen kolon adlari (kucuk harfe cevirip esliyoruz, videodaki gibi esnek)
+# kabul edilen kolon adlari (kucuk harfe cevirip esliyoruz)
 DATE_COLS = {"date", "tarih"}
 TICKER_COLS = {"ticker", "symbol", "sembol"}
 PRICE_COLS = {"price", "close", "adj_close", "fiyat"}
@@ -57,6 +57,5 @@ def returns_wide(df):
 
 
 def align_pair(wide, a, b):
-    """Iki serinin ortak gunlerini (ikisi de doluysa) iki Series olarak dondurur."""
     pair = wide[[a, b]].dropna()
     return pair[a], pair[b]

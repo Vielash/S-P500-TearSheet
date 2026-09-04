@@ -129,6 +129,13 @@ sonra yıl × ay pivotu. Isı haritası bu tablodan çiziliyor.
 Bu bölümdeki fonksiyonlara iki seri gelir ve ikisi de **aynı günlere hizalı**
 gelir (data.py'daki `align_pair` halleder — hizalamadan cov almak klasik hata).
 
+**Benchmark'ı seçerken:** iki seri de aynı temettü muamelesini görmeli. Hisse
+fiyatların düzeltilmiş kapanışsa (temettü dahil), benchmark da toplam getiri
+olmalı: `^SP500TR` ya da `SPY`. `^GSPC` salt fiyat endeksidir, temettü içermez;
+onunla ölçersen aradaki temettü farkı doğrudan `capm_alpha`'ya yazılır ve her
+hissede yıllık ~%1.5 sahte alpha görürsün. Kod bu hatayı yakalayamaz, sayı
+makul görünür — o yüzden burada yazıyor.
+
 ### beta
 `cov(r, b) / var(b)`
 
