@@ -418,6 +418,14 @@ code, kbd { font-family: 'IBM Plex Mono'; background: #20242c; color: #c8ccd6;
 .qt-meta { display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
            font: 400 12px/1.4 'IBM Plex Mono'; color: #c8ccd6; margin-top: 8px; }
 .qt-meta i { width: 3px; height: 3px; border-radius: 50%; background: #454c5a; }
+
+/* --- sayfa alt bilgisi: sorumluluk reddi + kaynak --- */
+.qt-foot { display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+           margin: 34px 0 6px; padding-top: 16px; border-top: 1px solid #333945;
+           font: 400 11px/1.5 'IBM Plex Mono'; color: #8b93a3; }
+.qt-foot i { width: 3px; height: 3px; border-radius: 50%; background: #454c5a; }
+.qt-foot a { color: #8b93a3; text-decoration: underline; text-underline-offset: 2px; }
+.qt-foot a:hover { color: #8fb3e8; }
 .qt-title { margin: 0; font: 600 30px/1.1 'IBM Plex Sans'; color: #f2f4f8; letter-spacing: -.02em; }
 .qt-title small { color: #8b93a3; font-weight: 400; font-size: 30px; }
 
@@ -651,3 +659,20 @@ def guide(status=None):
             out.append(f'<span class="qt-gfn">metrics.{k}()</span></div>')
             cards.append("".join(out))
         card_grid(cards, 3)
+
+
+def footer(items):
+    """Sayfanin altindaki tek satir. items: metin ya da (metin, url) ikilileri.
+
+    Herkese acik bir dagitimda bu satirin gorunmesi onemli: uygulama egitim
+    amaclidir ve urettigi sayilar yatirim tavsiyesi degildir.
+    """
+    parts = []
+    for it in items:
+        if isinstance(it, tuple):
+            text, url = it
+            parts.append(f'<a href="{escape(url)}" target="_blank" rel="noopener">'
+                         f'{escape(text)}</a>')
+        else:
+            parts.append(f"<span>{escape(it)}</span>")
+    html('<div class="qt-foot">' + "<i></i>".join(parts) + "</div>")

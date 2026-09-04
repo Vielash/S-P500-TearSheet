@@ -96,6 +96,20 @@ Kodu okuma sırası önerisi: `data.py` → `metrics.py` → `factors.py` → `p
 - `rf` yıllık orandır (0.04 = %4); fonksiyonlar içeride `periods_per_year`'a böler.
 - Getiriler her yerde ondalıktır, yüzde değil.
 
+## Canlıya alma (Streamlit Community Cloud)
+
+1. [share.streamlit.io](https://share.streamlit.io) → **New app** → bu repo, branch
+   `main`, main file `app.py`. Advanced settings'ten Python 3.10 seç.
+2. `requirements.txt`'i kendisi kurar; `requirements-dev.txt`'e dokunmaz.
+3. Ayarlanacak secret yok — uygulama hiçbir API anahtarı kullanmıyor.
+
+Canlıda bilinmesi gereken tek şey **Yahoo'nun rate limit'i**: bulutta bütün
+ziyaretçiler tek bir IP'den çıkar ve Yahoo tekrarlayan istekleri kısar. Bu
+durumda uygulama düşmüyor — "Yahoo is rate-limiting this server" paneli çıkıyor,
+CSV yükleme ve örnek veri yolları çalışmaya devam ediyor. Çekilen veri bir saat
+boyunca önbellekte tutuluyor (`fetch_frame`), bu da aynı isteği tekrar tekrar
+Yahoo'ya taşımayı önlüyor.
+
 ## Sorumluluk reddi
 
 Bu proje eğitim amaçlıdır. Ürettiği sayılar yatırım tavsiyesi değildir. Piyasa

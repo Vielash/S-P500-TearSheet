@@ -347,17 +347,29 @@ def error_screen(raw, name, message):
 def fetch_error(exc):
     """Canli veri gelmedi. market.py yazilmamis olabilir ya da istek basarisiz."""
     sidebar_idle()
+    # yfinance'in kendi sinifina bagimli olmayalim: market import edilememis olabilir
+    name = type(exc).__name__
+    text = str(exc).lower()
+    throttled = (name == "YFRateLimitError" or "rate limit" in text
+                 or "too many requests" in text)
+
     if isinstance(exc, NotImplementedError):
         head = "market.py is not written yet"
         body = ("<code>market.fetch_prices</code> still raises "
                 "<code>NotImplementedError</code>, so there is nothing to load.")
+        tail = ""
+    elif throttled:
+        head = "Yahoo is rate-limiting this server"
+        body = ("Yahoo Finance throttles repeated requests from one address, and on a "
+                "shared host that address is shared with everyone using this app.")
+        tail = ("<p>Wait a few minutes and try again, or upload a CSV instead — the "
+                "tearsheet does not care where the numbers came from.</p>")
     else:
         head = "Could not fetch prices"
-        body = f"<code>{escape(type(exc).__name__)}: {escape(str(exc))}</code>"
-    ui.html(f'<div class="qt-panel warn"><h4>{head}</h4><p>{body}</p>'
-            f'<p>Usual causes: a symbol Yahoo does not know, a date range with no '
-            f'trading days, no network, or a rate limit after repeated requests.</p>'
-            f'</div>')
+        body = f"<code>{escape(name)}: {escape(str(exc))}</code>"
+        tail = ("<p>Usual causes: a symbol Yahoo does not know, a date range with no "
+                "trading days, or no network.</p>")
+    ui.html(f'<div class="qt-panel warn"><h4>{head}</h4><p>{body}</p>{tail}</div>')
     st.write("")
     a, b, _ = st.columns([1, 1, 2])
     if a.button("Back", type="primary", key="fetch_back"):
@@ -1102,3 +1114,14 @@ if ui.ERRORS:
                 f'<p style="margin-bottom:10px">These functions are written but blow up when '
                 f'they run. Only their own cards are affected — the rest of the tearsheet '
                 f'keeps working.</p>{items}</div>')
+
+
+# --- alt bilgi ---------------------------------------------------------------
+# Herkese acik bir dagitimda gorunmesi gereken satir. Sekmelerin disinda duruyor
+# ki hangi sekmede olursan ol sayfanin altinda ayni sey yazsin.
+
+ui.footer([
+    "Educational project — not investment advice.",
+    "Prices from Yahoo Finance; accuracy and availability are not guaranteed.",
+    ("Source on GitHub", "https://github.com/Vielash/S-P500-TearSheet"),
+])

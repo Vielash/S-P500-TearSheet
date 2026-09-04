@@ -8,3 +8,6 @@ textColor = "#f2f4f8"
 [server]
 # tearsheet CSV'leri kucuk dosyalar; canlida 200 MB'lik varsayilani acik tutmanin anlami yok
 maxUploadSize = 10
+
+[browser]
+gatherUsageStats = false
